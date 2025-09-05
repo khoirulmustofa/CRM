@@ -14,7 +14,7 @@ class TestController extends Controller
     public function index()
     {
         $data['users'] = User::all();
-        return Inertia::render('Dashboard',$data);
+        return Inertia::render('Dashboard', $data);
     }
     public function sendPublicMessage(Request $request)
     {
@@ -86,20 +86,22 @@ class TestController extends Controller
             'message' => 'required|string|max:255',
         ]);
 
+        $userMe = Auth::user();
+
         // 2. Find the target user
-        $targetUser = User::findOrFail($validatedData['target_user_id']);
+        $userTo = User::findOrFail($validatedData['target_user_id']);
 
         // 3. Extract the message content
         $messageContent = $validatedData['message'];
 
         // 4. Dispatch the PrivateEvent to the target user
-        PrivateEvent::dispatch($targetUser, $messageContent);
+        PrivateEvent::dispatch($userTo, $userMe, $messageContent);
 
         // 5. Return a response
         return response()->json([
             'status' => 'Private message sent!',
             'message' => $messageContent,
-            'to_user_id' => $targetUser->id
+            'to_user_id' => $userTo->id
         ]);
     }
 }

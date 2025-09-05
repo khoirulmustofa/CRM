@@ -31,7 +31,7 @@ const sendPrivateMessage = async () => {
   try {
     // Adjust the URL to your actual private message endpoint
     const response = await axios.post('/send-private-message', {
-      target_user_id: userId,
+      target_user_id: userId.value, // Use .value to get the actual value
       message: messageInput.value,
     });
 
@@ -61,22 +61,20 @@ const sendPrivateMessage = async () => {
 // --- Listening for Private Broadcasts ---
 const handlePrivateNotification = (data) => {
     console.log('Private notification received via Echo:', data);
-    // The 'data' object contains the payload from broadcastWith()
-    // In this case: { username: '...', message: '...' }
     // You can display either or both parts
-    receivedMessages.value.push(`${data.username}: ${data.message}`);
+    receivedMessages.value.push(`${data.from}: ${data.message}`);
     // Or just the message: receivedMessages.value.push(data.message);
 };
 
 onMounted(() => {
     // Ensure Echo is initialized and user ID is available
     if (typeof window.Echo !== 'undefined' && userId) {
-        console.log(`Subscribing to private channel: App.Models.User.${userId}`);
+        console.log(`Subscribing to private channel: App.Models.User.${userId.value}`);
 
         // --- Correct Way to Listen for Private Events ---
         // 1. Use window.Echo.private() for PRIVATE channels
         // 2. Use the correct channel name based on your PrivateEvent
-        privateChannel = window.Echo.private(`App.Models.User.${userId}`);
+        privateChannel = window.Echo.private(`App.Models.User.${userId.value}`);
 
         // 3. Use .listen() for the event
         // 4. Because broadcastAs() returns 'user.notification',
@@ -93,11 +91,11 @@ onMounted(() => {
 // --- Cleanup Listener ---
 onUnmounted(() => {
     if (privateChannel && userId) {
-        console.log(`Unsubscribing from private channel: App.Models.User.${userId}`);
+        console.log(`Unsubscribing from private channel: App.Models.User.${userId.value}`);
         // Stop listening to the specific event when component is destroyed
         privateChannel.stopListening('.user.notification');
         // Optionally leave the channel:
-        // window.Echo.leave(`App.Models.User.${userId}`);
+        // window.Echo.leave(`App.Models.User.${userId.value}`);
     }
 });
 // --- End Listening ---

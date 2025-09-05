@@ -15,15 +15,17 @@ class PrivateEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $user; // The user receiving the message
+    public $userTo;
+    public $userMe;
     public $messageContent;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(User $user, $messageContent)
+    public function __construct(User $userTo, User $userMe, $messageContent)
     {
-        $this->user = $user;
+        $this->userTo = $userTo;
+        $this->userMe = $userMe;
         $this->messageContent = $messageContent;
     }
 
@@ -34,16 +36,17 @@ class PrivateEvent implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-       return [
-            new PrivateChannel('App.Models.User.' . $this->user->id),
+        return [
+            new PrivateChannel('App.Models.User.' . $this->userTo->id),
         ];
     }
 
     public function broadcastWith(): array
     {
         return array(
-            'username' => __('app.welcome_message', ['username' => $this->user->name]),
-            'message' => __('events.download_hawb_ready'),
+            'to' => $this->userTo->name,
+            'from' => $this->userMe->name,
+            'message' => $this->messageContent,
         );
     }
 
