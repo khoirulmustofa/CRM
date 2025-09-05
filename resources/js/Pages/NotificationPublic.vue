@@ -1,80 +1,100 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
-import { useEcho } from "@laravel/echo-vue";
 import axios from 'axios';
 
-const messageInput = ref('');
-const isSending = ref(false);
-const feedbackMessage = ref('');
-const receivedMessages = ref([]); // State to hold received messages
+// Membuat referensi reaktif untuk berbagai keadaan UI
+const messageInput = ref(''); // Input untuk pesan
+const isSending = ref(false); // Status apakah pesan sedang dikirim
+const feedbackMessage = ref(''); // Pesan umpan balik untuk pengguna
+const receivedMessages = ref([]); // Menyimpan daftar pesan yang diterima
 
-let publicChannel = null; // Variable to store the channel subscription
+let publicChannel = null; // Variabel untuk menyimpan langganan channel
 
-// --- Sending the Message ---
+// --- Mengirim Pesan ---
+// Fungsi asinkron untuk mengirim pesan ke endpoint Laravel
 const sendPublicMessage = async () => {
+    // Validasi input: cek apakah input tidak kosong
     if (!messageInput.value.trim()) {
-        feedbackMessage.value = 'Please enter a message.';
+        feedbackMessage.value = 'Silakan masukkan pesan.';
         return;
     }
 
+    // Set status pengiriman dan reset pesan umpan balik sebelumnya
     isSending.value = true;
     feedbackMessage.value = '';
 
     try {
+        // Kirim permintaan POST ke endpoint '/send-public-message'
         const response = await axios.post('/send-public-message', {
-            message: messageInput.value,
+            message: messageInput.value, // Kirim isi pesan
         });
 
-        console.log('Server Response:', response.data);
-        feedbackMessage.value = response.data.status || 'Message sent successfully!';
-        messageInput.value = ''; // Clear input on success
+        // Log respons dari server dan beri umpan balik sukses
+        console.log('Respons Server:', response.data);
+        feedbackMessage.value = response.data.status || 'Pesan berhasil dikirim!';
+        messageInput.value = ''; // Kosongkan input setelah berhasil
 
     } catch (error) {
-        console.error('Error sending message:', error);
+        // Tangani error yang terjadi selama pengiriman
+        console.error('Error saat mengirim pesan:', error);
+
+        // Cek jenis error dan berikan pesan yang sesuai
         if (error.response) {
-            console.error('Server Error Data:', error.response.data);
-            console.error('Server Error Status:', error.response.status);
-            feedbackMessage.value = `Error: ${error.response.data.message || 'Failed to send message.'}`;
+            // Error dari server (misalnya 4xx, 5xx)
+            console.error('Data Error Server:', error.response.data);
+            console.error('Status Error Server:', error.response.status);
+            feedbackMessage.value = `Error: ${error.response.data.message || 'Gagal mengirim pesan.'}`;
         } else if (error.request) {
-            console.error('No response received:', error.request);
-            feedbackMessage.value = 'Error: No response from server.';
+            // Tidak ada respons dari server (masalah jaringan)
+            console.error('Tidak ada respons diterima:', error.request);
+            feedbackMessage.value = 'Error: Tidak ada respons dari server.';
         } else {
-            console.error('Error message:', error.message);
+            // Error lainnya (masalah konfigurasi, dll)
+            console.error('Pesan error:', error.message);
             feedbackMessage.value = `Error: ${error.message}`;
         }
     } finally {
+        // Reset status pengiriman, terlepas dari sukses atau gagal
         isSending.value = false;
     }
 };
-// --- End Sending ---
+// --- Akhir Pengiriman ---
 
+// --- Menangani Notifikasi Publik ---
+// Fungsi yang dipanggil ketika pesan diterima melalui channel publik
 const handlePublicNotification = (data) => {
-    console.log('Public notification received via Echo:', data);
+    console.log('Notifikasi publik diterima via Echo:', data);
+    // Tambahkan pesan yang diterima ke daftar pesan
     receivedMessages.value.push(data.message);
 };
+// --- Akhir Penanganan ---
 
+// Saat komponen dimuat (mounted)
 onMounted(() => {
-   
-    // This should now work as window.Echo is properly initialized
+    // Periksa apakah Laravel Echo sudah diinisialisasi
     if (typeof window.Echo !== 'undefined') {
-        console.log('Subscribing to public channel: public-updates');
+        console.log('Berlangganan ke channel publik: public-updates');
+        // Berlangganan ke channel 'public-updates'
         publicChannel = window.Echo.channel('public-updates');
+        // Dengarkan event '.public.notification' di channel tersebut
         publicChannel.listen('.public.notification', handlePublicNotification);
     } else {
-        console.error('Laravel Echo is not initialized. Check your bootstrap.js configuration.');
-        feedbackMessage.value = 'Real-time updates are unavailable.';
+        // Tampilkan error jika Echo belum diinisialisasi
+        console.error('Laravel Echo belum diinisialisasi. Periksa konfigurasi bootstrap.js Anda.');
+        feedbackMessage.value = 'Pembaruan real-time tidak tersedia.';
     }
 });
 
+// Saat komponen dihancurkan (unmounted)
 onUnmounted(() => {
-    console.log('Unsubscribing from public channel: public-updates');
+    console.log('Berhenti berlangganan dari channel publik: public-updates');
+    // Hentikan mendengarkan event jika channel sudah dibuat
     if (publicChannel) {
         publicChannel.stopListening('.public.notification');
     }
 });
 
 </script>
-
 <template>
     <div class="p-6">
         <h2 class="text-xl font-bold mb-4">Send Public Message</h2>

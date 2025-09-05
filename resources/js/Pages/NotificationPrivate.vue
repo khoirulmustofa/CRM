@@ -1,104 +1,115 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
 import axios from 'axios';
-import { usePage } from '@inertiajs/vue3'; // Import usePage to get user data
+import { usePage } from '@inertiajs/vue3'; // Impor usePage untuk mendapatkan data pengguna
 
-const messageInput = ref('');
-const isSending = ref(false);
-const feedbackMessage = ref('');
-const receivedMessages = ref([]); // State to hold received messages
+const messageInput = ref(''); // Input untuk pesan
+const isSending = ref(false); // Status pengiriman pesan
+const feedbackMessage = ref(''); // Pesan umpan balik untuk pengguna
+const receivedMessages = ref([]); // Menyimpan daftar pesan yang diterima
 
-let privateChannel = null; // Variable to store the PRIVATE channel subscription
+let privateChannel = null; // Variabel untuk menyimpan langganan channel PRIVATE
 
-
+// Dapatkan data halaman dan pengguna dari Inertia
 const page = usePage();
-const users = page.props.users;
+const users = page.props.users; // Daftar pengguna (diasumsikan dikirim dari backend)
 
+// Dapatkan ID pengguna yang sedang login
 const userId = ref(page.props.auth.user.id);
 
-// --- Sending the Private Message ---
-// This assumes you have a corresponding Laravel controller endpoint
-// e.g., POST /send-private-message-to-me
+// --- Mengirim Pesan Pribadi ---
+// Fungsi ini mengirim pesan ke endpoint Laravel
 const sendPrivateMessage = async () => {
+  // Validasi input
   if (!messageInput.value.trim()) {
-    feedbackMessage.value = 'Please enter a message.';
+    feedbackMessage.value = 'Silakan masukkan pesan.';
     return;
   }
 
+  // Set status pengiriman
   isSending.value = true;
   feedbackMessage.value = '';
 
   try {
-    // Adjust the URL to your actual private message endpoint
+    // Kirim permintaan POST ke endpoint '/send-private-message'
     const response = await axios.post('/send-private-message', {
-      target_user_id: userId.value, // Use .value to get the actual value
+      target_user_id: userId.value, // Gunakan .value untuk mendapatkan nilai aktual dari ref
       message: messageInput.value,
     });
 
-    console.log('Server Response:', response.data);
-    feedbackMessage.value = response.data.status || 'Private message sent!';
-    messageInput.value = ''; // Clear input on success
+    // Tampilkan respons dari server
+    console.log('Respons Server:', response.data);
+    feedbackMessage.value = response.data.status || 'Pesan pribadi terkirim!';
+    messageInput.value = ''; // Kosongkan input setelah berhasil
 
   } catch (error) {
-    console.error('Error sending private message:', error);
+    // Tangani error saat pengiriman
+    console.error('Error saat mengirim pesan pribadi:', error);
     if (error.response) {
-      console.error('Server Error Data:', error.response.data);
-      console.error('Server Error Status:', error.response.status);
-      feedbackMessage.value = `Error: ${error.response.data.message || 'Failed to send private message.'}`;
+      // Error dari server
+      console.error('Data Error Server:', error.response.data);
+      console.error('Status Error Server:', error.response.status);
+      feedbackMessage.value = `Error: ${error.response.data.message || 'Gagal mengirim pesan pribadi.'}`;
     } else if (error.request) {
-      console.error('No response received:', error.request);
-      feedbackMessage.value = 'Error: No response from server.';
+      // Tidak ada respons dari server
+      console.error('Tidak ada respons:', error.request);
+      feedbackMessage.value = 'Error: Tidak ada respons dari server.';
     } else {
-      console.error('Error message:', error.message);
+      // Error lainnya
+      console.error('Pesan error:', error.message);
       feedbackMessage.value = `Error: ${error.message}`;
     }
   } finally {
+    // Reset status pengiriman
     isSending.value = false;
   }
 };
-// --- End Sending ---
+// --- Akhir Pengiriman ---
 
-// --- Listening for Private Broadcasts ---
+// --- Mendengarkan Siaran Pribadi ---
+// Fungsi ini menangani pesan yang diterima melalui Echo
 const handlePrivateNotification = (data) => {
-    console.log('Private notification received via Echo:', data);
-    // You can display either or both parts
-    receivedMessages.value.push(`${data.from}: ${data.message}`);
-    // Or just the message: receivedMessages.value.push(data.message);
+  console.log('Notifikasi pribadi diterima via Echo:', data);
+  // Tambahkan pesan ke daftar pesan yang diterima
+  receivedMessages.value.push(`${data.from}: ${data.message}`);
 };
 
+// Saat komponen dimuat
 onMounted(() => {
-    // Ensure Echo is initialized and user ID is available
-    if (typeof window.Echo !== 'undefined' && userId) {
-        console.log(`Subscribing to private channel: App.Models.User.${userId.value}`);
+  // Pastikan Echo sudah diinisialisasi dan ID pengguna tersedia
+  if (typeof window.Echo !== 'undefined' && userId) {
+    console.log(`Berlangganan ke channel pribadi: App.Models.User.${userId.value}`);
 
-        // --- Correct Way to Listen for Private Events ---
-        // 1. Use window.Echo.private() for PRIVATE channels
-        // 2. Use the correct channel name based on your PrivateEvent
-        privateChannel = window.Echo.private(`App.Models.User.${userId.value}`);
+    // --- Cara yang Benar untuk Mendengarkan Event Pribadi ---
+    // 1. Gunakan window.Echo.private() untuk channel PRIVATE
+    // 2. Gunakan nama channel yang benar berdasarkan PrivateEvent
+    privateChannel = window.Echo.private(`App.Models.User.${userId.value}`);
 
-        // 3. Use .listen() for the event
-        // 4. Because broadcastAs() returns 'user.notification',
-        //    you MUST prefix the event name with a DOT (.) in Echo
-        privateChannel.listen('.user.notification', handlePrivateNotification);
+    // 3. Gunakan .listen() untuk event
+    // 4. Karena broadcastAs() mengembalikan 'user.notification',
+    //    Anda HARUS menambahkan titik (.) di depan nama event di Echo
+    privateChannel.listen('.user.notification', handlePrivateNotification);
 
-    } else {
-        const errorMsg = !window.Echo ? 'Laravel Echo is not initialized.' : 'User ID not available.';
-        console.error(errorMsg + ' Check your setup.');
-        feedbackMessage.value = 'Real-time private updates are unavailable.';
-    }
+  } else {
+    // Tampilkan error jika Echo tidak diinisialisasi atau ID pengguna tidak tersedia
+    const errorMsg = !window.Echo ? 'Laravel Echo belum diinisialisasi.' : 'ID Pengguna tidak tersedia.';
+    console.error(errorMsg + ' Periksa kembali pengaturan Anda.');
+    feedbackMessage.value = 'Pembaruan pesan pribadi secara real-time tidak tersedia.';
+  }
 });
 
-// --- Cleanup Listener ---
+// --- Bersihkan Listener ---
+// Saat komponen dihancurkan
 onUnmounted(() => {
-    if (privateChannel && userId) {
-        console.log(`Unsubscribing from private channel: App.Models.User.${userId.value}`);
-        // Stop listening to the specific event when component is destroyed
-        privateChannel.stopListening('.user.notification');
-        // Optionally leave the channel:
-        // window.Echo.leave(`App.Models.User.${userId.value}`);
-    }
+  if (privateChannel && userId) {
+    console.log(`Berhenti berlangganan dari channel pribadi: App.Models.User.${userId.value}`);
+    // Hentikan mendengarkan event tertentu saat komponen dihancurkan
+    privateChannel.stopListening('.user.notification');
+    // Opsional: tinggalkan channel:
+    // window.Echo.leave(`App.Models.User.${userId.value}`);
+  }
 });
-// --- End Listening ---
+// --- Akhir Mendengarkan ---
 </script>
 
 <template>
@@ -108,23 +119,15 @@ onUnmounted(() => {
     <!-- Message Sending Form -->
     <!-- Changed @submit.prevent to call sendPrivateMessage -->
     <form @submit.prevent="sendPrivateMessage" class="mb-6">
-       <div class="card flex justify-center">
-        <Select v-model="userId" :options="users" optionLabel="name" optionValue="id" placeholder="Select a City" class="w-full md:w-56" />
-    </div>
+      <div class="card flex justify-center">
+        <Select v-model="userId" :options="users" optionLabel="name" optionValue="id" placeholder="Select a City"
+          class="w-full md:w-56" />
+      </div>
       <div class="flex items-center space-x-2">
-        <InputText
-          id="message"
-          v-model="messageInput"
-          type="text"
-          :disabled="isSending"
-          placeholder="Enter your private message"
-          class="flex-1 p-2 border rounded"
-        />
-        <Button
-          type="submit"
-          :disabled="isSending"
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-        >
+        <InputText id="message" v-model="messageInput" type="text" :disabled="isSending"
+          placeholder="Enter your private message" class="flex-1 p-2 border rounded" />
+        <Button type="submit" :disabled="isSending"
+          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50">
           {{ isSending ? 'Sending...' : 'Send Private Message' }}
         </Button>
       </div>
