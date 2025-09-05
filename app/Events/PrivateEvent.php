@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -10,18 +11,20 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class TestEvent
+class PrivateEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public $user; // The user receiving the message
+    public $messageContent;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(
-        public string $message,
-        public string $user
-    ) {
-        //
+    public function __construct(User $user, $messageContent)
+    {
+        $this->user = $user;
+        $this->messageContent = $messageContent;
     }
 
     /**
@@ -31,18 +34,21 @@ class TestEvent
      */
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel('channel-name'),
+       return [
+            new PrivateChannel('App.Models.User.' . $this->user->id),
         ];
     }
 
-    // Data yang akan dikirim ke client
     public function broadcastWith(): array
     {
-        return [
-            'message' => $this->message,
-            'user' => $this->user,
-            'timestamp' => now()->toISOString()
-        ];
+        return array(
+            'username' => __('app.welcome_message', ['username' => $this->user->name]),
+            'message' => __('events.download_hawb_ready'),
+        );
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'user.notification';
     }
 }
